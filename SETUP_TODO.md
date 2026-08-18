@@ -10,26 +10,29 @@ Nothing here blocks writing code — I can scaffold the app without any of
 this. But these unblock actually *running* it locally, so worth doing early,
 in parallel with implementation.
 
-- [ ] Create/choose a Google Cloud project.
-- [ ] Enable the **Google Sheets API** and **Google Calendar API** on it.
-- [ ] Create a **service account** in that project; generate and download
+- [x] Create/choose a Google Cloud project. (`ai-menu-505903`, under
+      karladidas@gmail.com)
+- [x] Enable the **Google Sheets API** and **Google Calendar API** on it.
+- [x] Create a **service account** in that project; generate and download
       its JSON key. Keep it out of git.
-- [ ] Get an **Anthropic API key** (console.anthropic.com).
-- [ ] Create an **OAuth 2.0 Client ID** (Web application) in the same GCP
+      (`ai-weekly-menu@ai-menu-505903.iam.gserviceaccount.com`, key
+      contents are in `.env.local`, the JSON file itself was deleted after
+      use)
+- [x] Get an **Anthropic API key** (console.anthropic.com).
+- [x] Create an **OAuth 2.0 Client ID** (Web application) in the same GCP
       project, for Google sign-in. Configure the OAuth consent screen —
-      "Internal"/testing mode with just your email as a test user is fine.
-  - [ ] Add `http://localhost:3000/api/auth/callback/google` as an
+      "External" + testing mode with karladidas@gmail.com as a test user
+      (personal Gmail accounts can't use "Internal").
+  - [x] Add `http://localhost:3000/api/auth/callback/google` as an
         authorized redirect URI.
 
 ## 2. Needed before testing Sheets/Calendar integration specifically
 
-- [ ] Create the **dev Google Sheet** with `Menu` and `Settings` tabs
-      (exact column headers TBD when we build this part — I can write a
-      setup script instead if you'd prefer not to do this by hand).
-- [ ] Share the dev Sheet with the service account's email (Editor access).
-- [ ] Create a dedicated **dev "Meals (dev)" Google Calendar**; note its
+- [x] Create the **dev Google Sheet** with `Menu` and `Settings` tabs.
+- [x] Share the dev Sheet with the service account's email (Editor access).
+- [x] Create a dedicated **dev "Meals (dev)" Google Calendar**; note its
       Calendar ID (Settings → *Integrate calendar*).
-- [ ] Share the dev calendar with the service account's email ("Make
+- [x] Share the dev calendar with the service account's email ("Make
       changes to events").
 
 ## 3. Needed before deploying to production

@@ -166,7 +166,11 @@ To develop safely without touching real data:
 
 ## Open implementation details (not blocking, decide while building)
 
-- Exact cron expression/time for Saturday-night generation.
+- Exact cron expression/time for Saturday-night generation. Note: on Vercel's
+  free Hobby tier, cron jobs aren't minute-precise — a job scheduled for
+  `0 2 * * 0` fires sometime within that UTC hour, not at the exact minute.
+  Fine for this use case (Hobby also comfortably covers a once-a-week job —
+  its limit is 2 cron jobs/project, each up to once/day).
 - Exact output-parsing/retry strategy if Claude's structured output is
   malformed.
 - How to identify "our" calendar events for deletion on regenerate (date
