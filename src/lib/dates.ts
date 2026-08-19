@@ -26,7 +26,12 @@ export function dayOfWeekFor(dateStr: string): string {
 export function getTargetWeekStart(today = new Date()): string {
   const day = today.getDay(); // 0 = Sunday ... 6 = Saturday
   const diff = day === 6 ? 1 : -day;
-  const d = new Date(today);
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  // Build from local Y/M/D rather than mutating `today` and going through
+  // toISOString (which converts to UTC) — in the evening in a UTC-negative
+  // timezone that rolls the date forward by one.
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }

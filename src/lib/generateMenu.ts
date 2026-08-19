@@ -22,6 +22,7 @@ interface GeneratedDay {
   dayOfWeek: string;
   mealName: string;
   status: MenuStatus;
+  isAdventurous: boolean;
 }
 
 function buildSystemPrompt(params: {
@@ -64,6 +65,8 @@ For each of the 7 days, decide a status:
 - "eating_out": the override mentions eating out that day; mealName should be empty
 - "meal_prep": the override mentions a meal-prep/delivery service that day; mealName should be empty
 - "manual_override": the override specifies something else for that day; mealName should briefly describe what it said
+
+Also set isAdventurous to true for any "generated" day whose mealName is a fun, unusual pick for this household (a new cuisine, an experimental dish, something out of the ordinary) — otherwise false. Don't describe it as "adventurous" in the mealName itself; the calendar shows an icon for it instead. Always false for non-"generated" days.
 
 Call the record_menu tool with exactly 7 entries, one per day listed above, in order.`;
 }
@@ -115,8 +118,19 @@ async function callClaudeForMenu(params: {
                       "manual_override",
                     ],
                   },
+                  isAdventurous: {
+                    type: "boolean",
+                    description:
+                      "True if mealName is a fun/unusual pick for this household. Always false for non-\"generated\" days.",
+                  },
                 },
-                required: ["date", "dayOfWeek", "mealName", "status"],
+                required: [
+                  "date",
+                  "dayOfWeek",
+                  "mealName",
+                  "status",
+                  "isAdventurous",
+                ],
               },
             },
           },
@@ -172,13 +186,18 @@ export async function generateWeeklyMenu(): Promise<MenuRow[]> {
     recentMealNames,
   });
 
-  const menuRows: MenuRow[] = generatedDays.map((d) => ({
-    date: d.date,
-    dayOfWeek: d.dayOfWeek,
-    weekStartDate,
-    mealName: d.mealName,
-    status: d.status,
-  }));
+  const menuRows: MenuRow[] = generatedDays.map((d) => {
+    const dayForecast = forecast.find((f) => f.date === d.date);
+    return {
+      date: d.date,
+      dayOfWeek: d.dayOfWeek,
+      weekStartDate,
+      mealName: d.mealName,
+      status: d.status,
+      weatherCode: dayForecast?.weatherCode ?? null,
+      isAdventurous: d.isAdventurous,
+    };
+  });
 
   await deleteMenuRowsForWeek(weekStartDate);
   await appendMenuRows(menuRows);

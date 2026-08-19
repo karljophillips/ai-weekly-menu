@@ -2,7 +2,7 @@ import { getSheetsClient } from "./google";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID ?? "";
 
-const MENU_RANGE = "Menu!A2:E";
+const MENU_RANGE = "Menu!A2:G";
 const SETTINGS_RANGE = "Settings!A2:C2";
 
 export type MenuStatus =
@@ -17,6 +17,8 @@ export interface MenuRow {
   weekStartDate: string; // YYYY-MM-DD, the Sunday that starts this row's week
   mealName: string;
   status: MenuStatus;
+  weatherCode: number | null; // WMO weather interpretation code
+  isAdventurous: boolean;
 }
 
 export interface Settings {
@@ -79,6 +81,8 @@ export async function getRecentMenuHistory(
         weekStartDate: row[2] ?? "",
         mealName: row[3] ?? "",
         status: (row[4] as MenuStatus) ?? "generated",
+        weatherCode: row[5] === "" || row[5] == null ? null : Number(row[5]),
+        isAdventurous: row[6] === "TRUE",
       })
     )
     .filter((row) => row.date >= sinceDate);
@@ -98,6 +102,8 @@ export async function appendMenuRows(rows: MenuRow[]): Promise<void> {
         r.weekStartDate,
         r.mealName,
         r.status,
+        r.weatherCode ?? "",
+        r.isAdventurous ? "TRUE" : "FALSE",
       ]),
     },
   });

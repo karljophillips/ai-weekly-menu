@@ -46,12 +46,18 @@ favourite/dislike UI (dropped from MVP, see below).
 
 **`Menu`** (append-only historical log — one row per day, every week; also
 the source the repeat-avoidance check reads from)
-| Date | DayOfWeek | WeekStartDate | MealName | Status |
-|---|---|---|---|---|
-| 2026-08-16 | Sunday | 2026-08-16 | Grilled chicken & salad | generated |
-| 2026-08-20 | Thursday | 2026-08-16 | — | eating_out |
+| Date | DayOfWeek | WeekStartDate | MealName | Status | WeatherCode | IsAdventurous |
+|---|---|---|---|---|---|---|
+| 2026-08-16 | Sunday | 2026-08-16 | Grilled chicken & salad | generated | 0 | FALSE |
+| 2026-08-20 | Thursday | 2026-08-16 | — | eating_out | 61 | FALSE |
 
 `Status` ∈ `generated`, `eating_out`, `meal_prep`, `manual_override`.
+
+`WeatherCode` is the day's WMO weather code from the forecast, recorded for
+every day regardless of status; `IsAdventurous` is set by Claude when the
+meal is a fun, unusual pick. Both drive an emoji shown on the calendar event
+instead of being spelled out in `MealName` — e.g. ☀️/⛅/🌧️/⛈️ for the day's
+weather, 🎲 for an adventurous pick.
 
 **`Settings`** (single row, key columns)
 | PreferencesPrompt | WeeklyOverridePrompt | LastGeneratedWeekStart |

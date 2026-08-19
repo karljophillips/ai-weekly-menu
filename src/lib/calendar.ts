@@ -1,20 +1,26 @@
 import { getCalendarClient } from "./google";
 import { addDays } from "./dates";
 import type { MenuRow } from "./sheets";
+import { weatherEmoji } from "./weather";
 
 const CALENDAR_ID = process.env.GOOGLE_MEALS_CALENDAR_ID ?? "";
 
 function titleForRow(row: MenuRow): string {
-  switch (row.status) {
-    case "eating_out":
-      return "Eating out";
-    case "meal_prep":
-      return "Meal prep";
-    case "manual_override":
-      return row.mealName || "Override";
-    default:
-      return row.mealName;
-  }
+  const base = (() => {
+    switch (row.status) {
+      case "eating_out":
+        return "Eating out";
+      case "meal_prep":
+        return "Meal prep";
+      case "manual_override":
+        return row.mealName || "Override";
+      default:
+        return row.isAdventurous ? `🎲 ${row.mealName}` : row.mealName;
+    }
+  })();
+
+  const weather = row.weatherCode != null ? weatherEmoji(row.weatherCode) : "";
+  return weather ? `${weather} ${base}` : base;
 }
 
 /** Deletes any existing events in the given week and creates one all-day event per row. */
