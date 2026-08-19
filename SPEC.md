@@ -90,7 +90,9 @@ the week sitting on the calendar right now.
 ## Generation flow (Saturday night / Sunday morning)
 
 1. Cron hits `/api/generate-menu` (protected by a shared secret header so
-   it can't be triggered publicly).
+   it can't be triggered publicly). Vercel Cron always sends a **GET**
+   request — the route handles both GET and POST (POST is what the manual
+   "Regenerate this week" button uses) so a cron invocation doesn't 405.
 2. Fetch 7-day forecast (Open-Meteo, Huntersville NC) for the upcoming
    Sun–Sat week.
 3. Read the last ~4–5 weeks of `Menu` rows (repeat-avoidance window = 1

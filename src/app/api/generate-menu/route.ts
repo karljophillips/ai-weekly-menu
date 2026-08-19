@@ -5,8 +5,12 @@ import { generateWeeklyMenu } from "@/lib/generateMenu";
 /**
  * Triggered either by Vercel Cron (Authorization: Bearer $CRON_SECRET) on
  * Saturday nights, or manually from /preferences by a signed-in user.
+ *
+ * Vercel Cron always sends a GET request (it has no way to send POST), so
+ * this needs a GET handler — a POST-only route 405s every cron invocation.
+ * POST is kept too, for the manual "Regenerate this week" button.
  */
-export async function POST(request: Request) {
+async function handleGenerate(request: Request): Promise<Response> {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
   const isCron = !!cronSecret && authHeader === `Bearer ${cronSecret}`;
@@ -29,3 +33,6 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const GET = handleGenerate;
+export const POST = handleGenerate;
