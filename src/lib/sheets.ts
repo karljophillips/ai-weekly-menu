@@ -3,7 +3,7 @@ import { getSheetsClient } from "./google";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID ?? "";
 
 const MENU_RANGE = "Menu!A2:G";
-const SETTINGS_RANGE = "Settings!A2:C2";
+const SETTINGS_RANGE = "Settings!A2:B2";
 
 export type MenuStatus =
   | "generated"
@@ -23,7 +23,6 @@ export interface MenuRow {
 
 export interface Settings {
   preferencesPrompt: string;
-  weeklyOverridePrompt: string;
   lastGeneratedWeekStart: string;
 }
 
@@ -33,12 +32,9 @@ export async function getSettings(): Promise<Settings> {
     spreadsheetId: SHEET_ID,
     range: SETTINGS_RANGE,
   });
-  const [
-    preferencesPrompt = "",
-    weeklyOverridePrompt = "",
-    lastGeneratedWeekStart = "",
-  ] = data.values?.[0] ?? [];
-  return { preferencesPrompt, weeklyOverridePrompt, lastGeneratedWeekStart };
+  const [preferencesPrompt = "", lastGeneratedWeekStart = ""] =
+    data.values?.[0] ?? [];
+  return { preferencesPrompt, lastGeneratedWeekStart };
 }
 
 export async function saveSettings(
@@ -52,40 +48,89 @@ export async function saveSettings(
     range: SETTINGS_RANGE,
     valueInputOption: "RAW",
     requestBody: {
-      values: [
-        [
-          merged.preferencesPrompt,
-          merged.weeklyOverridePrompt,
-          merged.lastGeneratedWeekStart,
-        ],
-      ],
+      values: [[merged.preferencesPrompt, merged.lastGeneratedWeekStart]],
     },
   });
 }
 
-/** All Menu rows on or after `sinceDate` (inclusive), oldest first. */
-export async function getRecentMenuHistory(
-  sinceDate: string
-): Promise<MenuRow[]> {
+function rowToMenuRow(row: string[]): MenuRow {
+  return {
+    date: row[0] ?? "",
+    dayOfWeek: row[1] ?? "",
+    weekStartDate: row[2] ?? "",
+    mealName: row[3] ?? "",
+    status: (row[4] as MenuStatus) ?? "generated",
+    weatherCode: row[5] === "" || row[5] == null ? null : Number(row[5]),
+    isAdventurous: row[6] === "TRUE",
+  };
+}
+
+/** All raw Menu rows alongside their 1-indexed grid row (MENU_RANGE starts at grid row 2). */
+async function getAllMenuRowsWithGridRow(): Promise<
+  { gridRow: number; row: MenuRow }[]
+> {
   const sheets = getSheetsClient();
   const { data } = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
     range: MENU_RANGE,
   });
   const rows = data.values ?? [];
+  return rows.map((row, i) => ({ gridRow: i + 2, row: rowToMenuRow(row) }));
+}
+
+/** All Menu rows on or after `sinceDate` (inclusive), oldest first. */
+export async function getRecentMenuHistory(
+  sinceDate: string
+): Promise<MenuRow[]> {
+  const rows = await getAllMenuRowsWithGridRow();
+  return rows.map((r) => r.row).filter((row) => row.date >= sinceDate);
+}
+
+/** The 7 Menu rows for the given week (by WeekStartDate), in date order. */
+export async function getMenuRowsForWeek(
+  weekStartDate: string
+): Promise<MenuRow[]> {
+  const rows = await getAllMenuRowsWithGridRow();
   return rows
-    .map(
-      (row): MenuRow => ({
-        date: row[0] ?? "",
-        dayOfWeek: row[1] ?? "",
-        weekStartDate: row[2] ?? "",
-        mealName: row[3] ?? "",
-        status: (row[4] as MenuStatus) ?? "generated",
-        weatherCode: row[5] === "" || row[5] == null ? null : Number(row[5]),
-        isAdventurous: row[6] === "TRUE",
-      })
-    )
-    .filter((row) => row.date >= sinceDate);
+    .map((r) => r.row)
+    .filter((row) => row.weekStartDate === weekStartDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Overwrites a single day's Menu row in place (same grid row) with a patch
+ * of fields — used by day-edits, which touch only the day(s) named rather
+ * than the whole week's rows.
+ */
+export async function updateMenuRow(
+  date: string,
+  patch: Partial<Pick<MenuRow, "mealName" | "status" | "isAdventurous">>
+): Promise<MenuRow> {
+  const rows = await getAllMenuRowsWithGridRow();
+  const match = rows.find((r) => r.row.date === date);
+  if (!match) throw new Error(`No Menu row found for date ${date}`);
+
+  const updated: MenuRow = { ...match.row, ...patch };
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `Menu!A${match.gridRow}:G${match.gridRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [
+        [
+          updated.date,
+          updated.dayOfWeek,
+          updated.weekStartDate,
+          updated.mealName,
+          updated.status,
+          updated.weatherCode ?? "",
+          updated.isAdventurous ? "TRUE" : "FALSE",
+        ],
+      ],
+    },
+  });
+  return updated;
 }
 
 export async function appendMenuRows(rows: MenuRow[]): Promise<void> {

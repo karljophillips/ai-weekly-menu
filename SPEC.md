@@ -5,12 +5,20 @@
 A weekly dinner-menu generator with no custom display: each Saturday
 night/Sunday morning it generates the coming week's dinners (Sun–Sat) using
 an LLM — taking into account household preferences, a rolling
-repeat-avoidance window, the week's weather forecast, and an optional weekly
-override prompt (e.g. "eating out Thursday, meal prep service Mon/Wed") —
-then writes them as events to a dedicated Google Calendar. That calendar is
-viewed via the wall tablet's existing calendar widget, so there's nothing to
-build for display. All data (the source of truth, and generation history)
-lives in a single Google Sheet.
+repeat-avoidance window, and the week's weather forecast — then writes them
+as events to a dedicated Google Calendar. That calendar is viewed via the
+wall tablet's existing calendar widget, so there's nothing to build for
+display. All data (the source of truth, and generation history) lives in a
+single Google Sheet.
+
+After a week is generated, plans change — you review it Sunday morning, or a
+day gets swapped mid-week (friends invite themselves for dinner, you decide
+to eat out). Rather than queueing a note for the *next* generation, you tell
+the app in free text which day(s) changed (e.g. "Thursday eating out" or
+"Saturday friends for dinner, we're getting pizza") and it edits just those
+day(s) — updating that Menu row and that day's calendar event in place —
+leaving the rest of the week, which you've already planned and shopped
+around, untouched.
 
 ## Architecture
 
@@ -37,7 +45,7 @@ lives in a single Google Sheet.
 
 | Route | Auth | Purpose |
 |---|---|---|
-| `/preferences` | sign-in required | Edit the persistent preferences prompt and the current week's override prompt; button to manually regenerate the current week. |
+| `/preferences` | sign-in required | Edit the persistent preferences prompt; apply a free-text edit to one or more days of the current, already-generated week; button to fully regenerate the current week from scratch. |
 
 That's the entire frontend for v1 — no widget, no week view, no
 favourite/dislike UI (dropped from MVP, see below).
@@ -53,21 +61,29 @@ the source the repeat-avoidance check reads from)
 
 `Status` ∈ `generated`, `eating_out`, `meal_prep`, `manual_override`.
 
+Rows aren't strictly append-only in practice: a day-edit overwrites its one
+row in place (same grid row, new values), and a full regenerate deletes and
+re-appends all 7 rows for the week. Both keep one row per date — history
+accumulates week-over-week, not edit-over-edit.
+
 `WeatherCode` is the day's WMO weather code from the forecast, recorded for
 every day regardless of status; `IsAdventurous` is set by Claude when the
 meal is a fun, unusual pick. Both drive an emoji shown on the calendar event
 instead of being spelled out in `MealName` — e.g. ☀️/⛅/🌧️/⛈️ for the day's
-weather, 🎲 for an adventurous pick.
+weather (kept even on `eating_out`/`meal_prep` days — useful for deciding
+*where*, e.g. by the lake on a nice day), 🎲 for an adventurous pick, 🍴 for
+`eating_out`, 🧑‍🍳 for `meal_prep`.
 
 **`Settings`** (single row, key columns)
-| PreferencesPrompt | WeeklyOverridePrompt | LastGeneratedWeekStart |
-|---|---|---|
-| free text you maintain | free text, edited weekly before generation | 2026-08-16 |
+| PreferencesPrompt | LastGeneratedWeekStart |
+|---|---|
+| free text you maintain | 2026-08-16 |
 
 `PreferencesPrompt` is long-lived free text you write/edit yourself (dietary
 notes, cuisine leanings, allergies, anything else) and gets folded directly
-into the system prompt. `WeeklyOverridePrompt` is the same idea but scoped
-to the current week only; it's read at generation time and then cleared.
+into the system prompt. `LastGeneratedWeekStart` doubles as "which week is
+currently live" — it's what day-edits (below) target, since it's exactly
+the week sitting on the calendar right now.
 
 ## Generation flow (Saturday night / Sunday morning)
 
@@ -76,31 +92,60 @@ to the current week only; it's read at generation time and then cleared.
 2. Fetch 7-day forecast (Open-Meteo, Huntersville NC) for the upcoming
    Sun–Sat week.
 3. Read the last ~4–5 weeks of `Menu` rows (repeat-avoidance window = 1
-   month) and `Settings` (`PreferencesPrompt` + `WeeklyOverridePrompt`).
+   month) and `Settings.PreferencesPrompt`.
 4. Build a system prompt combining: base instructions, the preferences
    prompt, weather→meal-style guidance (warm/dry → grill, cold → soup/stew,
-   etc.), meals served in the last month to avoid repeating, and handling
-   for the weekly override (days it names get `eating_out` / `meal_prep` /
-   whatever it specifies instead of a generated meal).
+   etc.), and meals served in the last month to avoid repeating.
 5. Call Claude, requesting structured output: 7 entries
    `{date, dayOfWeek, mealName, status}`.
 6. Append the 7 rows to `Menu`.
 7. Delete any existing "Meals" calendar events in that Sun–Sat date range
    (relevant on regenerate — no-op on a fresh week), then create one
-   all-day event per day titled with the meal name (or "Eating out" /
-   "Meal prep" for override days).
-8. Clear `WeeklyOverridePrompt` and update `LastGeneratedWeekStart` in
-   `Settings`.
+   all-day event per day titled with the meal name.
+8. Update `LastGeneratedWeekStart` in `Settings`.
 
 Manual "Regenerate this week" (from `/preferences`) re-runs the same flow
 on demand — e.g. after editing preferences — overwriting that week's Sheet
-rows and calendar events rather than duplicating them.
+rows and calendar events rather than duplicating them. This is a blunt,
+whole-week reset: it also **discards any day-edits** made since the week
+was generated, since it regenerates all 7 days from scratch. The UI should
+say so before running it.
+
+## Day-edit flow (any time after a week is generated)
+
+This is the everyday way plans change: Sunday-morning review, or a
+mid-week "actually, Saturday's pizza now." It never touches Claude's
+per-week generation — it edits the already-written Menu rows and calendar
+events for specific days only.
+
+1. On `/preferences`, you type free text naming one or more days and what
+   changed, e.g. "Thursday eating out" or "Saturday friends for dinner,
+   we're getting pizza". This posts to `/api/edit-days`.
+2. The route reads `Settings.LastGeneratedWeekStart` to find the currently
+   live week, then reads that week's 7 `Menu` rows (date, dayOfWeek,
+   status, mealName).
+3. It sends Claude the current week's 7 rows plus the instruction, and asks
+   for **only the day(s) the instruction refers to** — each as
+   `{date, status, mealName, isAdventurous}` — explicitly not the full
+   week. (Same `Status` enum as generation: `eating_out` / `meal_prep` for
+   those services, `manual_override` with a short `mealName` for anything
+   else named outright, like "pizza".)
+4. For each returned day: overwrite that single `Menu` row in place (same
+   grid row — no delete/re-append), then replace just that day's calendar
+   event (list events on that date, delete them, insert the new one).
+   Every other day's row and event is untouched.
+5. The response lists what changed (e.g. "Saturday → 🍕 Pizza") so you get
+   confirmation without needing to check the calendar.
+
+If the instruction is ambiguous or names a day outside the current week,
+the route should return an error/clarification rather than guessing —
+silently mis-editing a day is worse than making you retype it.
 
 ## Auth details
 
 - NextAuth Google provider. Sign-in succeeds only if the account's email is
   in an `ALLOWED_EMAILS` allowlist (env var).
-- `/preferences` and its POST actions (save preferences/override, manual
+- `/preferences` and its POST actions (save preferences, day-edit, manual
   regenerate) require a valid session. Nothing else in the app is
   user-facing.
 
@@ -179,6 +224,11 @@ To develop safely without touching real data:
   its limit is 2 cron jobs/project, each up to once/day).
 - Exact output-parsing/retry strategy if Claude's structured output is
   malformed.
-- How to identify "our" calendar events for deletion on regenerate (date
-  range within the dedicated calendar is sufficient since nothing else is
-  on it, but consider tagging via `extendedProperties` for safety).
+- How to identify "our" calendar events for deletion on regenerate/day-edit
+  (date range within the dedicated calendar is sufficient since nothing
+  else is on it, but consider tagging via `extendedProperties` for safety).
+- How strictly to validate the day-edit Claude call: it must reliably map
+  "Thursday"/"Saturday" to the right date in the live week and return only
+  the day(s) named, not the whole week. Worth testing with a handful of
+  real phrasings before trusting it unsupervised; consider rejecting (not
+  guessing) if it returns a day not present in the week it was given.

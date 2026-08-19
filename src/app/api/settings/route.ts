@@ -19,9 +19,6 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  await saveSettings({
-    preferencesPrompt: body.preferencesPrompt,
-    weeklyOverridePrompt: body.weeklyOverridePrompt,
-  });
+  await saveSettings({ preferencesPrompt: body.preferencesPrompt });
   return NextResponse.json({ ok: true });
 }

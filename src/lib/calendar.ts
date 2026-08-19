@@ -5,13 +5,13 @@ import { weatherEmoji } from "./weather";
 
 const CALENDAR_ID = process.env.GOOGLE_MEALS_CALENDAR_ID ?? "";
 
-function titleForRow(row: MenuRow): string {
+export function titleForRow(row: MenuRow): string {
   const base = (() => {
     switch (row.status) {
       case "eating_out":
-        return "Eating out";
+        return "🍴 Eating out";
       case "meal_prep":
-        return "Meal prep";
+        return "🧑‍🍳 Meal prep";
       case "manual_override":
         return row.mealName || "Override";
       default:
@@ -56,4 +56,33 @@ export async function replaceWeekEvents(
       },
     });
   }
+}
+
+/** Deletes any existing events on `row.date` and creates the one event for it — used by day-edits. */
+export async function replaceDayEvent(row: MenuRow): Promise<void> {
+  const calendar = getCalendarClient();
+
+  const { data } = await calendar.events.list({
+    calendarId: CALENDAR_ID,
+    timeMin: new Date(`${row.date}T00:00:00`).toISOString(),
+    timeMax: new Date(`${row.date}T23:59:59`).toISOString(),
+    singleEvents: true,
+  });
+
+  await Promise.all(
+    (data.items ?? [])
+      .filter((event) => event.id)
+      .map((event) =>
+        calendar.events.delete({ calendarId: CALENDAR_ID, eventId: event.id! })
+      )
+  );
+
+  await calendar.events.insert({
+    calendarId: CALENDAR_ID,
+    requestBody: {
+      summary: titleForRow(row),
+      start: { date: row.date },
+      end: { date: addDays(row.date, 1) },
+    },
+  });
 }

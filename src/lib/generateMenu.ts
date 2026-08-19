@@ -29,11 +29,9 @@ function buildSystemPrompt(params: {
   days: { date: string; dayOfWeek: string }[];
   forecast: DailyForecast[];
   preferencesPrompt: string;
-  weeklyOverridePrompt: string;
   recentMealNames: string[];
 }): string {
-  const { days, forecast, preferencesPrompt, weeklyOverridePrompt, recentMealNames } =
-    params;
+  const { days, forecast, preferencesPrompt, recentMealNames } = params;
 
   const forecastSummary = days
     .map(({ date, dayOfWeek }) => {
@@ -49,9 +47,6 @@ function buildSystemPrompt(params: {
 Household preferences:
 ${preferencesPrompt || "(none specified)"}
 
-This week's overrides (days named here should NOT get a generated meal - use their exact status instead):
-${weeklyOverridePrompt || "(none)"}
-
 Weather forecast for the week:
 ${forecastSummary}
 
@@ -61,10 +56,12 @@ Avoid repeating any of these meals served in the last ${REPEAT_AVOIDANCE_DAYS} d
 ${recentMealNames.length ? recentMealNames.join(", ") : "(none recorded)"}
 
 For each of the 7 days, decide a status:
-- "generated": a normal dinner, with mealName set to the dish
-- "eating_out": the override mentions eating out that day; mealName should be empty
-- "meal_prep": the override mentions a meal-prep/delivery service that day; mealName should be empty
-- "manual_override": the override specifies something else for that day; mealName should briefly describe what it said
+- "generated": a normal dinner, with mealName set to the dish (this should be true for nearly all days)
+- "eating_out": household preferences call for eating out this day
+- "meal_prep": household preferences call for a meal-prep/delivery service this day
+- "manual_override": household preferences call for something else specific this day; mealName should briefly describe it
+
+The non-"generated" statuses only apply if the household preferences prompt itself specifies something standing for a particular day of the week — otherwise use "generated" for all 7 days. Individual one-off changes (eating out this Thursday, etc.) are handled separately as day-edits after generation, not here.
 
 Also set isAdventurous to true for any "generated" day whose mealName is a fun, unusual pick for this household (a new cuisine, an experimental dish, something out of the ordinary) — otherwise false. Don't describe it as "adventurous" in the mealName itself; the calendar shows an icon for it instead. Always false for non-"generated" days.
 
@@ -76,7 +73,6 @@ async function callClaudeForMenu(params: {
   days: { date: string; dayOfWeek: string }[];
   forecast: DailyForecast[];
   preferencesPrompt: string;
-  weeklyOverridePrompt: string;
   recentMealNames: string[];
 }): Promise<GeneratedDay[]> {
   const { weekStartDate, days } = params;
@@ -182,7 +178,6 @@ export async function generateWeeklyMenu(): Promise<MenuRow[]> {
     days,
     forecast,
     preferencesPrompt: settings.preferencesPrompt,
-    weeklyOverridePrompt: settings.weeklyOverridePrompt,
     recentMealNames,
   });
 
@@ -202,10 +197,7 @@ export async function generateWeeklyMenu(): Promise<MenuRow[]> {
   await deleteMenuRowsForWeek(weekStartDate);
   await appendMenuRows(menuRows);
   await replaceWeekEvents(weekStartDate, menuRows);
-  await saveSettings({
-    weeklyOverridePrompt: "",
-    lastGeneratedWeekStart: weekStartDate,
-  });
+  await saveSettings({ lastGeneratedWeekStart: weekStartDate });
 
   return menuRows;
 }

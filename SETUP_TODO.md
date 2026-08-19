@@ -62,6 +62,18 @@ in parallel with implementation.
       (Already defined in `vercel.json`, picked up automatically on
       deploy — no separate console step needed.)
 
+## 4. Needed after the day-edit redesign (see `SPEC.md`)
+
+The `Settings` tab shrank from 3 columns to 2 — `WeeklyOverridePrompt` is
+gone, so `LastGeneratedWeekStart` is now column B instead of C. The code
+reads/writes `Settings!A2:B2`, so until you edit the actual sheets, the old
+column B (override text) will be misread as the week-start date.
+
+- [ ] In the **dev** Google Sheet's `Settings` tab, delete column B
+      (`WeeklyOverridePrompt`) so `LastGeneratedWeekStart` shifts into B.
+- [ ] Do the same in the **production** Google Sheet
+      (`1UHDC3gI-CaAaANJ6EWfNv_hP3Oe3wYqFK9LDFttzDkw`).
+
 ## Not needed from you at all
 
 - Nothing to install locally beyond Node.js — no Docker (see `SPEC.md` →
