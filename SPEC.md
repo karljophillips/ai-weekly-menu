@@ -23,7 +23,9 @@ around, untouched.
 ## Architecture
 
 - **Framework:** Next.js, deployed on Vercel (a settings page + API routes +
-  cron, all in one codebase/deploy).
+  cron, all in one codebase/deploy). Vercel's GitHub integration
+  auto-deploys to production on every push to `main` — no manual deploy
+  step.
 - **Scheduling:** Vercel Cron triggers an API route Saturday night (hardcoded
   for MVP — exact cron expression TBD at implementation time, targeting
   evening in America/New_York so it lands before the Sunday shop).
@@ -45,7 +47,7 @@ around, untouched.
 
 | Route | Auth | Purpose |
 |---|---|---|
-| `/preferences` | sign-in required | Edit the persistent preferences prompt; apply a free-text edit to one or more days of the current, already-generated week; button to fully regenerate the current week from scratch. |
+| `/preferences` | sign-in required | Edit the persistent preferences prompt; apply a free-text edit to one or more days of the current, already-generated week; button to fully regenerate the current week from scratch; button to re-sync the calendar from the Sheet. |
 
 That's the entire frontend for v1 — no widget, no week view, no
 favourite/dislike UI (dropped from MVP, see below).
@@ -141,13 +143,36 @@ If the instruction is ambiguous or names a day outside the current week,
 the route should return an error/clarification rather than guessing —
 silently mis-editing a day is worse than making you retype it.
 
+**Finding the existing event to replace, correctly:** looking up "the
+event on this date" via a `timeMin`/`timeMax` window is timezone-sensitive
+— converting a plain date to an instant depends on the server's runtime
+timezone (e.g. UTC on Vercel vs. local when run on a dev machine), which
+can shift a tight one-day window enough to miss the event entirely,
+leaving a stale duplicate after the new one is inserted. To avoid this,
+the lookup pads the query window by a day on each side and then filters
+strictly by the event's own `start.date` field (an exact string match, not
+a time comparison) before deleting — see `listEventsInDateRange` in
+`calendar.ts`. `replaceWeekEvents` (full generation) uses the same
+padded-and-filtered lookup.
+
+## Sync calendar (manual recovery)
+
+A "Sync calendar" button on `/preferences` rebuilds the current week's
+calendar events from the Sheet — the Sheet is always the source of truth,
+so this is a one-way Sheet → Calendar repair for when they've drifted
+(e.g. a calendar write failed partway through, or someone edited an event
+by hand on the calendar itself). It reads the live week's 7 `Menu` rows
+and calls the same `replaceWeekEvents` used by generation — delete
+everything currently on the calendar for that week's date range, re-insert
+one event per row. It never modifies the Sheet.
+
 ## Auth details
 
 - NextAuth Google provider. Sign-in succeeds only if the account's email is
   in an `ALLOWED_EMAILS` allowlist (env var).
 - `/preferences` and its POST actions (save preferences, day-edit, manual
-  regenerate) require a valid session. Nothing else in the app is
-  user-facing.
+  regenerate, sync calendar) require a valid session. Nothing else in the
+  app is user-facing.
 
 ## Environment variables (Vercel)
 

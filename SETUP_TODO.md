@@ -53,6 +53,10 @@ in parallel with implementation.
 - [x] Create a **Vercel account** and connect the `ai-weekly-menu` GitHub
       repo. (Team `phillips7`, project `ai-weekly-menu`, deployed at
       https://ai-weekly-menu.vercel.app)
+      (Confirmed 2026-08-18: this connection auto-deploys to production
+      on every push to `main` — no manual "Deploy" step needed. If that
+      ever stops happening, check Project Settings → Git → Production
+      Branch / Ignored Build Step.)
 - [x] Set all env vars in Vercel (list is in `SPEC.md`).
       (Note: Vercel's env var UI does not strip surrounding quotes the
       way `.env.local`/dotenv parsing does — paste
