@@ -37,18 +37,30 @@ in parallel with implementation.
 
 ## 3. Needed before deploying to production
 
-- [ ] Create the **production Google Sheet** (same schema as dev) and
+- [x] Create the **production Google Sheet** (same schema as dev) and
       share it with the service account.
-- [ ] Create the **production "Meals" Google Calendar**, share it with the
+      (`1UHDC3gI-CaAaANJ6EWfNv_hP3Oe3wYqFK9LDFttzDkw`)
+- [x] Create the **production "Meals" Google Calendar**, share it with the
       service account, note its Calendar ID.
+      (`ea76d94b9aea864e863543c86d4d493e105223903df97e592e4eaf4d8e893966@group.calendar.google.com`)
 - [ ] Add the production Meals calendar as a visible layer wherever the
-      Cozyla's calendar widget points.
-- [ ] Add the production redirect URI (your real domain) to the same
+      Cozyla's calendar widget points. (Should show automatically since
+      it's under the same karladidas@gmail.com account — worth confirming
+      on the tablet itself.)
+- [x] Add the production redirect URI (your real domain) to the same
       OAuth Client ID.
-- [ ] Create a **Vercel account** and connect the `ai-weekly-menu` GitHub
-      repo.
-- [ ] Set all env vars in Vercel (list is in `SPEC.md`).
-- [ ] Configure the Vercel Cron job for Saturday-night generation.
+      (`https://ai-weekly-menu.vercel.app/api/auth/callback/google`)
+- [x] Create a **Vercel account** and connect the `ai-weekly-menu` GitHub
+      repo. (Team `phillips7`, project `ai-weekly-menu`, deployed at
+      https://ai-weekly-menu.vercel.app)
+- [x] Set all env vars in Vercel (list is in `SPEC.md`).
+      (Note: Vercel's env var UI does not strip surrounding quotes the
+      way `.env.local`/dotenv parsing does — paste
+      `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` *without* the wrapping `"..."`
+      or JWT signing fails with `DECODER routines::unsupported`.)
+- [x] Configure the Vercel Cron job for Saturday-night generation.
+      (Already defined in `vercel.json`, picked up automatically on
+      deploy — no separate console step needed.)
 
 ## Not needed from you at all
 
