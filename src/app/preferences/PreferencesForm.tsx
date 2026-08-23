@@ -104,15 +104,15 @@ export function PreferencesForm({
         <p className="text-sm text-gray-500">
           Tell it what changed on specific day(s) — only those day(s) update,
           the rest of the week is left alone. e.g. &quot;Thursday eating
-          out&quot; or &quot;Saturday friends for dinner, we&apos;re getting
-          pizza&quot;.
+          out&quot;, &quot;Saturday friends for dinner, we&apos;re getting
+          pizza&quot;, or &quot;give Monday a new recipe&quot;.
         </p>
         <textarea
           autoFocus
           className="min-h-24 rounded border p-3 text-base"
           value={editInstruction}
           onChange={(e) => setEditInstruction(e.target.value)}
-          placeholder="e.g. Saturday friends for dinner, we're getting pizza"
+          placeholder="e.g. give Monday a new recipe"
         />
         <div>
           <button

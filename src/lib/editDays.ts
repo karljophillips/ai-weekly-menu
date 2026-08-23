@@ -1,7 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { replaceDayEvent } from "./calendar";
+import { addDays } from "./dates";
+import { REPEAT_AVOIDANCE_DAYS } from "./generateMenu";
 import {
   getMenuRowsForWeek,
+  getRecentMenuHistory,
   getSettings,
   updateMenuRow,
   type MenuRow,
@@ -40,7 +43,7 @@ Status values:
 - "eating_out": eating out that day; mealName should be empty
 - "meal_prep": a meal-prep/delivery service that day; mealName should be empty
 - "manual_override": anything else specific named for that day (e.g. "pizza with friends"); mealName should briefly describe it
-- "generated": only use this if the instruction explicitly reverts a day back to a normal generated dinner without naming a specific dish
+- "generated": use this if the instruction reverts a day back to a normal dinner, OR asks for a new/different recipe suggestion for that day (e.g. "give Monday a new recipe", "I don't like Thursday's dinner, pick something else", "surprise me for Friday") — in both cases leave mealName empty; a fresh dish will be picked automatically afterward. Only fill in mealName here if the instruction itself names the specific dish to use.
 
 Set isAdventurous to false in all cases — this field doesn't apply to day-edits.
 
@@ -108,6 +111,75 @@ async function callClaudeForEdit(
   return input.days;
 }
 
+interface NewMeal {
+  mealName: string;
+  isAdventurous: boolean;
+}
+
+/**
+ * Picks a fresh, specific dish for a single day whose day-edit asked for a
+ * new/different suggestion rather than naming one — mirrors the per-day
+ * decision made during weekly generation (lib/generateMenu.ts), scoped to
+ * just this one day.
+ */
+async function callClaudeForNewMeal(params: {
+  date: string;
+  dayOfWeek: string;
+  preferencesPrompt: string;
+  recentMealNames: string[];
+}): Promise<NewMeal> {
+  const { date, dayOfWeek, preferencesPrompt, recentMealNames } = params;
+
+  const systemPrompt = `You are picking a new dinner for a household, replacing what was previously planned for one day because they asked for a different suggestion.
+
+Household preferences:
+${preferencesPrompt || "(none specified)"}
+
+Avoid repeating any of these meals (already served recently, or already planned elsewhere this week):
+${recentMealNames.length ? recentMealNames.join(", ") : "(none recorded)"}
+
+Pick one specific dish/recipe name for ${dayOfWeek} ${date}, e.g. "Chicken Carnitas Tacos with Pickled Onion" or "Grilled Salmon with Chimichurri" — never a category, cuisine, or rotation label on its own.
+
+Set isAdventurous to true if this is a fun, unusual pick for this household (a new cuisine, an experimental dish, something out of the ordinary), otherwise false. Don't describe it as "adventurous" in the mealName itself.
+
+Call the record_meal tool with the chosen mealName and isAdventurous.`;
+
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    system: systemPrompt,
+    messages: [
+      { role: "user", content: `Pick a new dinner for ${dayOfWeek} ${date}.` },
+    ],
+    tools: [
+      {
+        name: "record_meal",
+        description: "Records the newly picked dish for this day.",
+        input_schema: {
+          type: "object",
+          properties: {
+            mealName: {
+              type: "string",
+              description:
+                'A specific dish/recipe name, e.g. "Chicken Carnitas Tacos with Pickled Onion". Never just a category, cuisine, or rotation label.',
+            },
+            isAdventurous: { type: "boolean" },
+          },
+          required: ["mealName", "isAdventurous"],
+        },
+      },
+    ],
+    tool_choice: { type: "tool", name: "record_meal" },
+  });
+
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("Claude did not return the expected record_meal tool call");
+  }
+
+  return toolUse.input as NewMeal;
+}
+
 /**
  * Applies a free-text instruction to one or more days of the current live
  * week (Settings.LastGeneratedWeekStart) — updating only the Menu row(s)
@@ -139,12 +211,50 @@ export async function applyDayEdits(instruction: string): Promise<MenuRow[]> {
     );
   }
 
+  const editedDates = new Set(edits.map((edit) => edit.date));
+  const needsNewMeal = edits.some(
+    (edit) => edit.status === "generated" && !edit.mealName.trim()
+  );
+
+  // Only fetched when at least one edit needs a fresh dish picked.
+  let recentMealNames: string[] = [];
+  if (needsNewMeal) {
+    const weekStart = currentWeek[0].weekStartDate;
+    const recentHistory = await getRecentMenuHistory(
+      addDays(weekStart, -REPEAT_AVOIDANCE_DAYS)
+    );
+    const plannedThisWeek = currentWeek.filter(
+      (row) => row.status === "generated" && row.mealName && !editedDates.has(row.date)
+    );
+    recentMealNames = [
+      ...new Set(
+        [...recentHistory, ...plannedThisWeek]
+          .filter((r) => r.status === "generated" && r.mealName)
+          .map((r) => r.mealName)
+      ),
+    ];
+  }
+
   const updatedRows: MenuRow[] = [];
   for (const edit of edits) {
+    let { mealName, isAdventurous } = edit;
+    if (edit.status === "generated" && !mealName.trim()) {
+      const dayOfWeek =
+        currentWeek.find((row) => row.date === edit.date)?.dayOfWeek ?? "";
+      const newMeal = await callClaudeForNewMeal({
+        date: edit.date,
+        dayOfWeek,
+        preferencesPrompt: settings.preferencesPrompt,
+        recentMealNames,
+      });
+      mealName = newMeal.mealName;
+      isAdventurous = newMeal.isAdventurous;
+    }
+
     const updated = await updateMenuRow(edit.date, {
       status: edit.status,
-      mealName: edit.mealName,
-      isAdventurous: edit.isAdventurous,
+      mealName,
+      isAdventurous,
     });
     await replaceDayEvent(updated);
     updatedRows.push(updated);
