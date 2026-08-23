@@ -56,7 +56,7 @@ Avoid repeating any of these meals served in the last ${REPEAT_AVOIDANCE_DAYS} d
 ${recentMealNames.length ? recentMealNames.join(", ") : "(none recorded)"}
 
 For each of the 7 days, decide a status:
-- "generated": a normal dinner, with mealName set to the dish (this should be true for nearly all days)
+- "generated": a normal dinner, with mealName set to a specific dish/recipe name (this should be true for nearly all days). mealName must always be an actual dish, e.g. "Chicken Carnitas Tacos with Pickled Onion" or "Grilled Salmon with Chimichurri" — never a category, cuisine, or rotation label on its own. If the household preferences pin a day to a fixed theme (e.g. "Tuesday: Mexican Tacos" or "Friday: fish"), pick one specific recipe that fits that theme rather than repeating the theme name as the mealName.
 - "eating_out": household preferences call for eating out this day
 - "meal_prep": household preferences call for a meal-prep/delivery service this day
 - "manual_override": household preferences call for something else specific this day; mealName should briefly describe it
@@ -104,7 +104,11 @@ async function callClaudeForMenu(params: {
                 properties: {
                   date: { type: "string" },
                   dayOfWeek: { type: "string" },
-                  mealName: { type: "string" },
+                  mealName: {
+                    type: "string",
+                    description:
+                      "A specific dish/recipe name, e.g. \"Chicken Carnitas Tacos with Pickled Onion\". Never just a category, cuisine, or rotation label like \"Mexican Tacos\" on its own.",
+                  },
                   status: {
                     type: "string",
                     enum: [
