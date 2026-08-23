@@ -133,12 +133,21 @@ events for specific days only.
    `{date, status, mealName, isAdventurous}` — explicitly not the full
    week. (Same `Status` enum as generation: `eating_out` / `meal_prep` for
    those services, `manual_override` with a short `mealName` for anything
-   else named outright, like "pizza".)
-4. For each returned day: overwrite that single `Menu` row in place (same
+   else named outright, like "pizza".) If the instruction just reverts a
+   day to a normal dinner, or asks for a new/different recipe suggestion
+   without naming a dish (e.g. "give Monday a new recipe", "surprise me for
+   Friday"), Claude returns `status: "generated"` with `mealName` left
+   empty rather than guessing a dish itself.
+4. For any returned day with `status: "generated"` and an empty `mealName`,
+   a second Claude call picks one specific dish for just that day —
+   honoring the household preferences prompt and avoiding meals served in
+   the last 28 days or already planned elsewhere in the current week (the
+   same repeat-avoidance window used by weekly generation).
+5. For each returned day: overwrite that single `Menu` row in place (same
    grid row — no delete/re-append), then replace just that day's calendar
    event (list events on that date, delete them, insert the new one).
    Every other day's row and event is untouched.
-5. The response lists what changed (e.g. "Saturday → 🍕 Pizza") so you get
+6. The response lists what changed (e.g. "Saturday → 🍕 Pizza") so you get
    confirmation without needing to check the calendar.
 
 If the instruction is ambiguous or names a day outside the current week,

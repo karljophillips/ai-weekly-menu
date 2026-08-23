@@ -13,7 +13,7 @@ import { getWeeklyForecast, type DailyForecast } from "./weather";
 import { replaceWeekEvents } from "./calendar";
 
 const MODEL = "claude-sonnet-5";
-const REPEAT_AVOIDANCE_DAYS = 28;
+export const REPEAT_AVOIDANCE_DAYS = 28;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
