@@ -19,15 +19,28 @@ export function dayOfWeekFor(dateStr: string): string {
 }
 
 /**
- * Today's date as YYYY-MM-DD, built from local Y/M/D rather than
- * toISOString (which converts to UTC and can roll the date in the evening
- * in a UTC-negative timezone).
+ * The household's timezone (matches the location used for weather.ts).
+ * The server itself runs in UTC (Vercel), so "today"/"the current week"
+ * must be computed against this, not the server's own clock — otherwise
+ * anything run in the evening Eastern time reads as the next UTC day.
  */
-export function todayString(today = new Date()): string {
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+const HOUSEHOLD_TIMEZONE = "America/New_York";
+
+function localDateParts(now: Date): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: HOUSEHOLD_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+/** Today's date as YYYY-MM-DD, in the household's timezone. */
+export function todayString(now = new Date()): string {
+  const { year, month, day } = localDateParts(now);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /**
@@ -35,13 +48,13 @@ export function todayString(today = new Date()): string {
  * a Saturday (the normal cron case), otherwise the most recent Sunday
  * (so a mid-week manual regenerate updates the week already in progress).
  */
-export function getTargetWeekStart(today = new Date()): string {
-  const day = today.getDay(); // 0 = Sunday ... 6 = Saturday
-  const diff = day === 6 ? 1 : -day;
-  // Build from local Y/M/D rather than mutating `today` and going through
-  // toISOString (which converts to UTC) — in the evening in a UTC-negative
-  // timezone that rolls the date forward by one.
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+export function getTargetWeekStart(now = new Date()): string {
+  const { year, month, day } = localDateParts(now);
+  // Noon avoids any DST-transition edge cases when shifting by a day.
+  const localToday = new Date(year, month - 1, day, 12);
+  const dow = localToday.getDay(); // 0 = Sunday ... 6 = Saturday
+  const diff = dow === 6 ? 1 : -dow;
+  const d = new Date(year, month - 1, day + diff, 12);
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
