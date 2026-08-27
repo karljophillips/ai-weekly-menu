@@ -3,7 +3,8 @@ import { getSheetsClient } from "./google";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID ?? "";
 
 const MENU_RANGE = "Menu!A2:G";
-const SETTINGS_RANGE = "Settings!A2:B2";
+const SETTINGS_RANGE = "Settings!A2:C2";
+const DEFAULT_TIMEZONE = "America/New_York";
 
 export type MenuStatus =
   | "generated"
@@ -24,6 +25,8 @@ export interface MenuRow {
 export interface Settings {
   preferencesPrompt: string;
   lastGeneratedWeekStart: string;
+  /** IANA timezone name (e.g. "America/New_York") the household lives in. */
+  timezone: string;
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -32,9 +35,13 @@ export async function getSettings(): Promise<Settings> {
     spreadsheetId: SHEET_ID,
     range: SETTINGS_RANGE,
   });
-  const [preferencesPrompt = "", lastGeneratedWeekStart = ""] =
+  const [preferencesPrompt = "", lastGeneratedWeekStart = "", timezone = ""] =
     data.values?.[0] ?? [];
-  return { preferencesPrompt, lastGeneratedWeekStart };
+  return {
+    preferencesPrompt,
+    lastGeneratedWeekStart,
+    timezone: timezone || DEFAULT_TIMEZONE,
+  };
 }
 
 export async function saveSettings(
@@ -48,7 +55,9 @@ export async function saveSettings(
     range: SETTINGS_RANGE,
     valueInputOption: "RAW",
     requestBody: {
-      values: [[merged.preferencesPrompt, merged.lastGeneratedWeekStart]],
+      values: [
+        [merged.preferencesPrompt, merged.lastGeneratedWeekStart, merged.timezone],
+      ],
     },
   });
 }

@@ -157,15 +157,15 @@ async function callClaudeForMenu(params: {
 }
 
 export async function generateWeeklyMenu(): Promise<MenuRow[]> {
-  const weekStartDate = getTargetWeekStart();
+  const settings = await getSettings();
+  const weekStartDate = getTargetWeekStart(settings.timezone);
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekStartDate, i);
     return { date, dayOfWeek: dayOfWeekFor(date) };
   });
 
-  const [forecast, settings, recentHistory] = await Promise.all([
-    getWeeklyForecast(weekStartDate),
-    getSettings(),
+  const [forecast, recentHistory] = await Promise.all([
+    getWeeklyForecast(weekStartDate, settings.timezone),
     getRecentMenuHistory(addDays(weekStartDate, -REPEAT_AVOIDANCE_DAYS)),
   ]);
 

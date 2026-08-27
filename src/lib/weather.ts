@@ -61,10 +61,13 @@ function representativeDaytimeCode(
  * 7-day forecast for the week starting `startDate` (YYYY-MM-DD), for the
  * location in LOCATION_LAT/LOCATION_LON. Uses an explicit date range rather
  * than "next 7 days" since generation runs the night before the target week
- * starts, not on the first day of it.
+ * starts, not on the first day of it. `timezone` (an IANA name, e.g.
+ * "America/New_York") is the household's own timezone (Settings.Timezone) —
+ * it's what Open-Meteo uses to bucket `daily`/`hourly` values by calendar day.
  */
 export async function getWeeklyForecast(
-  startDate: string
+  startDate: string,
+  timezone: string
 ): Promise<DailyForecast[]> {
   const lat = process.env.LOCATION_LAT;
   const lon = process.env.LOCATION_LON;
@@ -79,7 +82,7 @@ export async function getWeeklyForecast(
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
     `&hourly=weather_code` +
-    `&timezone=America%2FNew_York&start_date=${startDate}&end_date=${endDate.toISOString().slice(0, 10)}`;
+    `&timezone=${encodeURIComponent(timezone)}&start_date=${startDate}&end_date=${endDate.toISOString().slice(0, 10)}`;
 
   const res = await fetch(url);
   if (!res.ok) {

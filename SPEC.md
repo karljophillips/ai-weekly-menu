@@ -77,15 +77,20 @@ weather (kept even on `eating_out`/`meal_prep` days — useful for deciding
 `eating_out`, 🧑‍🍳 for `meal_prep`.
 
 **`Settings`** (single row, key columns)
-| PreferencesPrompt | LastGeneratedWeekStart |
-|---|---|
-| free text you maintain | 2026-08-16 |
+| PreferencesPrompt | LastGeneratedWeekStart | Timezone |
+|---|---|---|
+| free text you maintain | 2026-08-16 | America/New_York |
 
 `PreferencesPrompt` is long-lived free text you write/edit yourself (dietary
 notes, cuisine leanings, allergies, anything else) and gets folded directly
 into the system prompt. `LastGeneratedWeekStart` doubles as "which week is
 currently live" — it's what day-edits (below) target, since it's exactly
-the week sitting on the calendar right now.
+the week sitting on the calendar right now. `Timezone` is the household's
+IANA timezone name, editable from `/preferences`; it's what "today"/
+"tomorrow" in day-edits, which week a generation run targets, and the
+weather forecast's day-bucketing are all computed against — the app server
+itself runs in UTC (Vercel), so this can't be inferred from the server's own
+clock. Defaults to `America/New_York` if left blank.
 
 ## Generation flow (Saturday night / Sunday morning)
 

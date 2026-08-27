@@ -5,7 +5,16 @@ import { useState } from "react";
 interface Settings {
   preferencesPrompt: string;
   lastGeneratedWeekStart: string;
+  timezone: string;
 }
+
+const TIMEZONE_OPTIONS: string[] = (() => {
+  try {
+    return Intl.supportedValuesOf("timeZone");
+  } catch {
+    return [];
+  }
+})();
 
 interface UpdatedRow {
   date: string;
@@ -37,6 +46,7 @@ export function PreferencesForm({
   const [preferencesPrompt, setPreferencesPrompt] = useState(
     initialSettings.preferencesPrompt
   );
+  const [timezone, setTimezone] = useState(initialSettings.timezone);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const [editInstruction, setEditInstruction] = useState("");
@@ -53,7 +63,7 @@ export function PreferencesForm({
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferencesPrompt }),
+      body: JSON.stringify({ preferencesPrompt, timezone }),
     });
     setSaveStatus(res.ok ? "saved" : "error");
   }
@@ -186,17 +196,40 @@ export function PreferencesForm({
           Household preferences
         </summary>
 
-        <label className="mt-4 flex flex-col gap-2">
-          <p className="text-sm text-gray-500">
-            Long-lived notes (dietary, cuisine leanings, allergies) — set
-            this once and revisit rarely, not for one-off changes.
-          </p>
-          <textarea
-            className="min-h-32 rounded border p-2"
-            value={preferencesPrompt}
-            onChange={(e) => setPreferencesPrompt(e.target.value)}
-            placeholder="e.g. no seafood, love Mexican and Italian food, keep it under 45 mins to cook"
-          />
+        <div className="mt-4 flex flex-col gap-2">
+          <label className="flex flex-col gap-2">
+            <p className="text-sm text-gray-500">
+              Long-lived notes (dietary, cuisine leanings, allergies) — set
+              this once and revisit rarely, not for one-off changes.
+            </p>
+            <textarea
+              className="min-h-32 rounded border p-2"
+              value={preferencesPrompt}
+              onChange={(e) => setPreferencesPrompt(e.target.value)}
+              placeholder="e.g. no seafood, love Mexican and Italian food, keep it under 45 mins to cook"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <p className="text-sm text-gray-500">
+              Timezone — used to figure out what &quot;today&quot; and
+              &quot;tomorrow&quot; mean in day-edits, which week to generate,
+              and the weather forecast.
+            </p>
+            <input
+              list="timezone-options"
+              className="rounded border p-2"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              placeholder="e.g. America/New_York"
+            />
+            <datalist id="timezone-options">
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <option key={tz} value={tz} />
+              ))}
+            </datalist>
+          </label>
+
           <div>
             <button
               onClick={savePreferences}
@@ -210,7 +243,7 @@ export function PreferencesForm({
             {saveStatus === "saved" && "Saved."}
             {saveStatus === "error" && "Something went wrong."}
           </p>
-        </label>
+        </div>
       </details>
     </div>
   );

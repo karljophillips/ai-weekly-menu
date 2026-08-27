@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getSettings, saveSettings } from "@/lib/sheets";
+import { getSettings, saveSettings, type Settings } from "@/lib/sheets";
 
 export async function GET() {
   const session = await auth();
@@ -19,6 +19,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  await saveSettings({ preferencesPrompt: body.preferencesPrompt });
+  const update: Partial<Settings> = {};
+  if (typeof body.preferencesPrompt === "string") {
+    update.preferencesPrompt = body.preferencesPrompt;
+  }
+  if (typeof body.timezone === "string" && body.timezone.trim()) {
+    update.timezone = body.timezone.trim();
+  }
+  await saveSettings(update);
   return NextResponse.json({ ok: true });
 }

@@ -22,7 +22,7 @@ interface EditedDay {
   isAdventurous: boolean;
 }
 
-function buildSystemPrompt(currentWeek: MenuRow[]): string {
+function buildSystemPrompt(currentWeek: MenuRow[], timezone: string): string {
   const weekSummary = currentWeek
     .map(
       (row) =>
@@ -32,7 +32,7 @@ function buildSystemPrompt(currentWeek: MenuRow[]): string {
     )
     .join("\n");
 
-  const today = todayString();
+  const today = todayString(timezone);
 
   return `You are editing a household's already-generated dinner menu for one week, in response to a short instruction about specific day(s) that changed (plans changed, they're eating out, friends are coming over, etc.).
 
@@ -56,12 +56,13 @@ Every date you return MUST exactly match one of the dates listed above. Call the
 
 async function callClaudeForEdit(
   currentWeek: MenuRow[],
-  instruction: string
+  instruction: string,
+  timezone: string
 ): Promise<EditedDay[]> {
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system: buildSystemPrompt(currentWeek),
+    system: buildSystemPrompt(currentWeek, timezone),
     messages: [{ role: "user", content: instruction }],
     tools: [
       {
@@ -203,7 +204,7 @@ export async function applyDayEdits(instruction: string): Promise<MenuRow[]> {
     );
   }
 
-  const edits = await callClaudeForEdit(currentWeek, instruction);
+  const edits = await callClaudeForEdit(currentWeek, instruction, settings.timezone);
 
   const validDates = new Set(currentWeek.map((row) => row.date));
   const invalid = edits.filter((edit) => !validDates.has(edit.date));

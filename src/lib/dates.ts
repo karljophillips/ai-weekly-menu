@@ -19,16 +19,17 @@ export function dayOfWeekFor(dateStr: string): string {
 }
 
 /**
- * The household's timezone (matches the location used for weather.ts).
  * The server itself runs in UTC (Vercel), so "today"/"the current week"
- * must be computed against this, not the server's own clock — otherwise
- * anything run in the evening Eastern time reads as the next UTC day.
+ * must be computed against the household's own timezone (Settings.Timezone),
+ * not the server's own clock — otherwise anything run in the evening in a
+ * UTC-negative timezone reads as the next UTC day.
  */
-const HOUSEHOLD_TIMEZONE = "America/New_York";
-
-function localDateParts(now: Date): { year: number; month: number; day: number } {
+function localDateParts(
+  now: Date,
+  timeZone: string
+): { year: number; month: number; day: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: HOUSEHOLD_TIMEZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -37,9 +38,9 @@ function localDateParts(now: Date): { year: number; month: number; day: number }
   return { year: get("year"), month: get("month"), day: get("day") };
 }
 
-/** Today's date as YYYY-MM-DD, in the household's timezone. */
-export function todayString(now = new Date()): string {
-  const { year, month, day } = localDateParts(now);
+/** Today's date as YYYY-MM-DD, in the given timezone. */
+export function todayString(timeZone: string, now = new Date()): string {
+  const { year, month, day } = localDateParts(now, timeZone);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
@@ -48,8 +49,8 @@ export function todayString(now = new Date()): string {
  * a Saturday (the normal cron case), otherwise the most recent Sunday
  * (so a mid-week manual regenerate updates the week already in progress).
  */
-export function getTargetWeekStart(now = new Date()): string {
-  const { year, month, day } = localDateParts(now);
+export function getTargetWeekStart(timeZone: string, now = new Date()): string {
+  const { year, month, day } = localDateParts(now, timeZone);
   // Noon avoids any DST-transition edge cases when shifting by a day.
   const localToday = new Date(year, month - 1, day, 12);
   const dow = localToday.getDay(); // 0 = Sunday ... 6 = Saturday
