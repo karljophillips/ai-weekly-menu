@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { replaceDayEvent } from "./calendar";
-import { addDays } from "./dates";
+import { addDays, dayOfWeekFor, todayString } from "./dates";
 import { REPEAT_AVOIDANCE_DAYS } from "./generateMenu";
 import {
   getMenuRowsForWeek,
@@ -32,7 +32,11 @@ function buildSystemPrompt(currentWeek: MenuRow[]): string {
     )
     .join("\n");
 
+  const today = todayString();
+
   return `You are editing a household's already-generated dinner menu for one week, in response to a short instruction about specific day(s) that changed (plans changed, they're eating out, friends are coming over, etc.).
+
+Today's date is ${today} (${dayOfWeekFor(today)}). Use this to resolve relative references like "today", "tomorrow", or "this weekend" to the correct date(s) below.
 
 This week's current menu:
 ${weekSummary}

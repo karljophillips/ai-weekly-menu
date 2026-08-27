@@ -19,6 +19,18 @@ export function dayOfWeekFor(dateStr: string): string {
 }
 
 /**
+ * Today's date as YYYY-MM-DD, built from local Y/M/D rather than
+ * toISOString (which converts to UTC and can roll the date in the evening
+ * in a UTC-negative timezone).
+ */
+export function todayString(today = new Date()): string {
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
  * The week this generation run should target: the upcoming Sunday if run on
  * a Saturday (the normal cron case), otherwise the most recent Sunday
  * (so a mid-week manual regenerate updates the week already in progress).
