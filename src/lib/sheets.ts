@@ -3,7 +3,8 @@ import { getSheetsClient } from "./google";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID ?? "";
 
 const MENU_RANGE = "Menu!A2:G";
-const SETTINGS_RANGE = "Settings!A2:C2";
+const TODDLER_MENU_RANGE = "ToddlerMenu!A2:F";
+const SETTINGS_RANGE = "Settings!A2:D2";
 const DEFAULT_TIMEZONE = "America/New_York";
 
 export type MenuStatus =
@@ -22,11 +23,24 @@ export interface MenuRow {
   isAdventurous: boolean;
 }
 
+export type ToddlerMenuStatus = "generated" | "no_school" | "manual_override";
+
+export interface ToddlerMenuRow {
+  date: string; // YYYY-MM-DD
+  dayOfWeek: string;
+  weekStartDate: string; // YYYY-MM-DD, the Sunday that starts this row's week
+  snack: string;
+  meal: string;
+  status: ToddlerMenuStatus;
+}
+
 export interface Settings {
   preferencesPrompt: string;
   lastGeneratedWeekStart: string;
   /** IANA timezone name (e.g. "America/New_York") the household lives in. */
   timezone: string;
+  /** Long-lived free text for the toddler school snack/lunch menu (allergies, daycare rules, etc.). */
+  toddlerPreferencesPrompt: string;
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -35,12 +49,17 @@ export async function getSettings(): Promise<Settings> {
     spreadsheetId: SHEET_ID,
     range: SETTINGS_RANGE,
   });
-  const [preferencesPrompt = "", lastGeneratedWeekStart = "", timezone = ""] =
-    data.values?.[0] ?? [];
+  const [
+    preferencesPrompt = "",
+    lastGeneratedWeekStart = "",
+    timezone = "",
+    toddlerPreferencesPrompt = "",
+  ] = data.values?.[0] ?? [];
   return {
     preferencesPrompt,
     lastGeneratedWeekStart,
     timezone: timezone || DEFAULT_TIMEZONE,
+    toddlerPreferencesPrompt,
   };
 }
 
@@ -56,7 +75,12 @@ export async function saveSettings(
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        [merged.preferencesPrompt, merged.lastGeneratedWeekStart, merged.timezone],
+        [
+          merged.preferencesPrompt,
+          merged.lastGeneratedWeekStart,
+          merged.timezone,
+          merged.toddlerPreferencesPrompt,
+        ],
       ],
     },
   });
@@ -163,8 +187,15 @@ export async function appendMenuRows(rows: MenuRow[]): Promise<void> {
   });
 }
 
-/** Removes any existing Menu rows for the given week, so a regenerate doesn't duplicate them. */
-export async function deleteMenuRowsForWeek(
+/**
+ * Removes any existing rows for the given week (matched on the WeekStartDate
+ * column, index 2) from `sheetTitle`/`range`, so a regenerate doesn't
+ * duplicate them. Shared by the Menu and ToddlerMenu tabs, which have the
+ * same append-only-per-week shape.
+ */
+async function deleteRowsForWeek(
+  sheetTitle: string,
+  range: string,
   weekStartDate: string
 ): Promise<void> {
   const sheets = getSheetsClient();
@@ -173,18 +204,18 @@ export async function deleteMenuRowsForWeek(
     sheets.spreadsheets.get({ spreadsheetId: SHEET_ID }),
     sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: MENU_RANGE,
+      range,
     }),
   ]);
 
-  const menuSheet = metaRes.data.sheets?.find(
-    (s) => s.properties?.title === "Menu"
+  const sheet = metaRes.data.sheets?.find(
+    (s) => s.properties?.title === sheetTitle
   );
-  const sheetId = menuSheet?.properties?.sheetId;
-  if (sheetId == null) throw new Error('Sheet tab "Menu" not found');
+  const sheetId = sheet?.properties?.sheetId;
+  if (sheetId == null) throw new Error(`Sheet tab "${sheetTitle}" not found`);
 
   const rows = valuesRes.data.values ?? [];
-  // MENU_RANGE starts at row 2 (row 1 is the header), so array index i is
+  // range starts at row 2 (row 1 is the header), so array index i is
   // grid row (0-indexed) i + 1.
   const gridRowsToDelete = rows
     .map((row, i) => (row[2] === weekStartDate ? i + 1 : null))
@@ -208,4 +239,80 @@ export async function deleteMenuRowsForWeek(
       })),
     },
   });
+}
+
+/** Removes any existing Menu rows for the given week, so a regenerate doesn't duplicate them. */
+export async function deleteMenuRowsForWeek(
+  weekStartDate: string
+): Promise<void> {
+  await deleteRowsForWeek("Menu", MENU_RANGE, weekStartDate);
+}
+
+function rowToToddlerMenuRow(row: string[]): ToddlerMenuRow {
+  return {
+    date: row[0] ?? "",
+    dayOfWeek: row[1] ?? "",
+    weekStartDate: row[2] ?? "",
+    snack: row[3] ?? "",
+    meal: row[4] ?? "",
+    status: (row[5] as ToddlerMenuStatus) ?? "generated",
+  };
+}
+
+/** All ToddlerMenu rows on or after `sinceDate` (inclusive), oldest first. */
+export async function getRecentToddlerMenuHistory(
+  sinceDate: string
+): Promise<ToddlerMenuRow[]> {
+  const sheets = getSheetsClient();
+  const { data } = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: TODDLER_MENU_RANGE,
+  });
+  const rows = data.values ?? [];
+  return rows.map(rowToToddlerMenuRow).filter((row) => row.date >= sinceDate);
+}
+
+/** The ToddlerMenu rows (weekdays only) for the given week, in date order. */
+export async function getToddlerMenuRowsForWeek(
+  weekStartDate: string
+): Promise<ToddlerMenuRow[]> {
+  const sheets = getSheetsClient();
+  const { data } = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: TODDLER_MENU_RANGE,
+  });
+  const rows = data.values ?? [];
+  return rows
+    .map(rowToToddlerMenuRow)
+    .filter((row) => row.weekStartDate === weekStartDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function appendToddlerMenuRows(
+  rows: ToddlerMenuRow[]
+): Promise<void> {
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: TODDLER_MENU_RANGE,
+    valueInputOption: "RAW",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+      values: rows.map((r) => [
+        r.date,
+        r.dayOfWeek,
+        r.weekStartDate,
+        r.snack,
+        r.meal,
+        r.status,
+      ]),
+    },
+  });
+}
+
+/** Removes any existing ToddlerMenu rows for the given week, so a regenerate doesn't duplicate them. */
+export async function deleteToddlerMenuRowsForWeek(
+  weekStartDate: string
+): Promise<void> {
+  await deleteRowsForWeek("ToddlerMenu", TODDLER_MENU_RANGE, weekStartDate);
 }

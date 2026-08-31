@@ -90,7 +90,37 @@ IANA timezone name, editable from `/preferences`; it's what "today"/
 "tomorrow" in day-edits, which week a generation run targets, and the
 weather forecast's day-bucketing are all computed against — the app server
 itself runs in UTC (Vercel), so this can't be inferred from the server's own
-clock. Defaults to `America/New_York` if left blank.
+clock. Defaults to `America/New_York` if left blank. `ToddlerPreferencesPrompt`
+is the same idea, scoped to the toddler school menu below (allergies,
+daycare rules, favorites, standing no-school days).
+
+**`ToddlerMenu`** (append-only historical log — one row per school day,
+every week; weekdays only)
+| Date | DayOfWeek | WeekStartDate | Snack | Meal | Status |
+|---|---|---|---|---|---|
+| 2026-08-17 | Monday | 2026-08-16 | Apple slices with peanut butter | Turkey and cheese roll-ups | generated |
+| 2026-08-21 | Friday | 2026-08-16 | — | — | no_school |
+
+`Status` ∈ `generated`, `no_school`, `manual_override`. Same shape and
+regenerate-in-place semantics as `Menu` (a full regenerate deletes and
+re-appends the week's rows), but no day-edit support in v1 — a full
+regenerate is cheap enough for a menu that changes rarely.
+
+A toddler school snack/lunch menu, generated for the school week (Monday
+through Friday only) alongside the household dinner menu — same cron run,
+same Sheet, same "Meals" calendar, distinguished by a 🧒 prefix on its
+calendar events so it doesn't get confused with dinner. It's independent of
+weather and reuses the same 28-day repeat-avoidance window, scoped to its
+own `ToddlerMenu` history. Because both tracks share one calendar, every
+event this app writes is tagged via `extendedProperties.private.track`
+(`"dinner"` or `"toddler"`) so a regenerate/sync on one track only
+deletes-and-recreates its own events — see `replaceWeekEvents` vs.
+`replaceToddlerWeekEvents` in `calendar.ts`. Events written before this
+tagging existed have no `track` property and are treated as `"dinner"`.
+
+`/preferences` gets one more field (`ToddlerPreferencesPrompt`) alongside
+the household one; "Regenerate this week" and "Sync calendar" cover both
+tracks in one action rather than getting their own buttons.
 
 ## Generation flow (Saturday night / Sunday morning)
 
@@ -204,7 +234,7 @@ one event per row. It never modifies the Sheet.
 
 ## One-time setup (not code, but required before build)
 
-1. Create the Google Sheet with the two tabs above.
+1. Create the Google Sheet with the three tabs above.
 2. Create a dedicated Google Calendar ("Meals"); note its Calendar ID.
 3. Create a Google Cloud project → service account → JSON key → share both
    the Sheet and the Meals calendar with the service account's email
@@ -250,8 +280,12 @@ To develop safely without touching real data:
   the free-text preferences prompt; revisit if the LLM's picks drift).
 - Recipes/ingredients/steps (meal is name-only for v1).
 - Auto-generated shopping list.
-- Per-person preference profiles (v1 is one shared household profile).
-- Breakfast/lunch (v1 is dinner only).
+- Per-person preference profiles (v1 is one shared household profile; the
+  toddler menu is its own separate profile, but still one prompt, not
+  per-child).
+- Household breakfast/lunch (v1 is dinner only; the toddler menu covers
+  toddler school snack/lunch specifically).
+- Day-edit support for the toddler menu (regenerate-the-whole-week only).
 - Notifications/reminders (e.g. "defrost tonight").
 - Nutrition info, meal photos.
 - Any custom widget/display (superseded by the calendar approach).

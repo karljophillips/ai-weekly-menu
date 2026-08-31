@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { generateWeeklyMenu } from "@/lib/generateMenu";
+import { generateToddlerWeeklyMenu } from "@/lib/generateToddlerMenu";
 
 /**
  * Triggered either by Vercel Cron (Authorization: Bearer $CRON_SECRET) on
@@ -24,7 +25,10 @@ async function handleGenerate(request: Request): Promise<Response> {
 
   try {
     const menuRows = await generateWeeklyMenu();
-    return NextResponse.json({ ok: true, menuRows });
+    const toddlerMenuRows = await generateToddlerWeeklyMenu(
+      menuRows[0]?.weekStartDate
+    );
+    return NextResponse.json({ ok: true, menuRows, toddlerMenuRows });
   } catch (error) {
     console.error("generate-menu failed", error);
     return NextResponse.json(

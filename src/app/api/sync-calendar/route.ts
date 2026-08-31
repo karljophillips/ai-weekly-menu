@@ -13,8 +13,8 @@ export async function POST() {
   }
 
   try {
-    const menuRows = await syncCalendarWithSheet();
-    return NextResponse.json({ ok: true, menuRows });
+    const { menuRows, toddlerMenuRows } = await syncCalendarWithSheet();
+    return NextResponse.json({ ok: true, menuRows, toddlerMenuRows });
   } catch (error) {
     console.error("sync-calendar failed", error);
     return NextResponse.json(

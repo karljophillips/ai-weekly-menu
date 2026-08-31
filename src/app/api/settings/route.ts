@@ -26,6 +26,9 @@ export async function POST(request: Request) {
   if (typeof body.timezone === "string" && body.timezone.trim()) {
     update.timezone = body.timezone.trim();
   }
+  if (typeof body.toddlerPreferencesPrompt === "string") {
+    update.toddlerPreferencesPrompt = body.toddlerPreferencesPrompt;
+  }
   await saveSettings(update);
   return NextResponse.json({ ok: true });
 }

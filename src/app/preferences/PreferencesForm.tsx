@@ -6,6 +6,7 @@ interface Settings {
   preferencesPrompt: string;
   lastGeneratedWeekStart: string;
   timezone: string;
+  toddlerPreferencesPrompt: string;
 }
 
 const TIMEZONE_OPTIONS: string[] = (() => {
@@ -47,6 +48,9 @@ export function PreferencesForm({
     initialSettings.preferencesPrompt
   );
   const [timezone, setTimezone] = useState(initialSettings.timezone);
+  const [toddlerPreferencesPrompt, setToddlerPreferencesPrompt] = useState(
+    initialSettings.toddlerPreferencesPrompt
+  );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const [editInstruction, setEditInstruction] = useState("");
@@ -63,7 +67,11 @@ export function PreferencesForm({
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferencesPrompt, timezone }),
+      body: JSON.stringify({
+        preferencesPrompt,
+        timezone,
+        toddlerPreferencesPrompt,
+      }),
     });
     setSaveStatus(res.ok ? "saved" : "error");
   }
@@ -91,7 +99,7 @@ export function PreferencesForm({
   async function regenerate() {
     if (
       !confirm(
-        "This regenerates all 7 days from scratch and discards any day-edits made this week. Continue?"
+        "This regenerates all 7 dinner days and the toddler school week from scratch, and discards any day-edits made this week. Continue?"
       )
     ) {
       return;
@@ -149,10 +157,11 @@ export function PreferencesForm({
         <div className="mt-4 flex flex-col gap-2">
           <span className="font-medium">Regenerate entire week</span>
           <p className="text-sm text-gray-500">
-            Redoes all 7 days from scratch (e.g. after changing preferences
-            below). Discards any day-edits made since this week was
-            generated. Only needed if something&apos;s gone wrong — day-edits
-            above cover normal changes.
+            Redoes all 7 dinner days and the toddler school week from scratch
+            (e.g. after changing preferences below). Discards any day-edits
+            made since this week was generated. Only needed if
+            something&apos;s gone wrong — day-edits above cover normal
+            changes.
           </p>
           <div>
             <button onClick={regenerate} className="rounded border px-4 py-2">
@@ -173,9 +182,10 @@ export function PreferencesForm({
         <div className="mt-6 flex flex-col gap-2 border-t pt-4">
           <span className="font-medium">Sync calendar</span>
           <p className="text-sm text-gray-500">
-            Rebuilds this week&apos;s calendar events from the Sheet (the
-            source of truth). Use this if the calendar ever looks out of
-            sync with the Sheet — it doesn&apos;t touch the Sheet itself.
+            Rebuilds this week&apos;s calendar events (dinner and toddler
+            school menu) from the Sheet (the source of truth). Use this if
+            the calendar ever looks out of sync with the Sheet — it
+            doesn&apos;t touch the Sheet itself.
           </p>
           <div>
             <button onClick={syncCalendar} className="rounded border px-4 py-2">
@@ -207,6 +217,21 @@ export function PreferencesForm({
               value={preferencesPrompt}
               onChange={(e) => setPreferencesPrompt(e.target.value)}
               placeholder="e.g. no seafood, love Mexican and Italian food, keep it under 45 mins to cook"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <p className="text-sm text-gray-500">
+              Toddler school snack/lunch notes (allergies, daycare rules,
+              favorites, standing no-school days) — folded into the separate
+              weekly toddler menu, generated alongside dinner and marked with
+              🧒 on the calendar.
+            </p>
+            <textarea
+              className="min-h-32 rounded border p-2"
+              value={toddlerPreferencesPrompt}
+              onChange={(e) => setToddlerPreferencesPrompt(e.target.value)}
+              placeholder="e.g. no nuts, no school on Fridays, loves anything with cheese"
             />
           </label>
 
