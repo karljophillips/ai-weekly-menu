@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { addDays, dayOfWeekFor } from "./dates";
-import { REPEAT_AVOIDANCE_DAYS } from "./generateMenu";
 import {
   appendToddlerMenuRows,
   deleteToddlerMenuRowsForWeek,
@@ -12,6 +11,12 @@ import {
 import { replaceToddlerWeekEvents } from "./calendar";
 
 const MODEL = "claude-sonnet-5";
+
+/**
+ * The toddler menu is less strict about variety than dinner — a week of
+ * recent items is enough inspiration/context, not a repeat-avoidance list.
+ */
+const INSPIRATION_LOOKBACK_DAYS = 7;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -39,7 +44,7 @@ function buildSystemPrompt(params: {
 Toddler/school preferences:
 ${preferencesPrompt || "(none specified)"}
 
-Avoid repeating any of these snacks/meals served in the last ${REPEAT_AVOIDANCE_DAYS} days:
+Snacks/meals served in the last ${INSPIRATION_LOOKBACK_DAYS} days, for inspiration/context — this menu doesn't need much variety, repeats are fine:
 ${recentItemNames.length ? recentItemNames.join(", ") : "(none recorded)"}
 
 For each of the 5 school days (${dayList}), decide a status:
@@ -149,7 +154,7 @@ export async function generateToddlerWeeklyMenu(
   });
 
   const recentHistory = await getRecentToddlerMenuHistory(
-    addDays(targetWeekStart, -REPEAT_AVOIDANCE_DAYS)
+    addDays(targetWeekStart, -INSPIRATION_LOOKBACK_DAYS)
   );
 
   const recentItemNames = [

@@ -33,15 +33,19 @@ export function titleForRow(row: MenuRow): string {
   return weather ? `${weather} ${base}` : base;
 }
 
-/** 🧒 distinguishes toddler school snack/lunch events from the household dinner events sharing this calendar. */
-export function titleForToddlerRow(row: ToddlerMenuRow): string {
+/**
+ * 🧒 distinguishes toddler school events from the household dinner events
+ * sharing this calendar. A "generated" day gets two separate events (snack,
+ * lunch) rather than one combined event — easier to read at a glance.
+ */
+export function titlesForToddlerRow(row: ToddlerMenuRow): string[] {
   switch (row.status) {
     case "no_school":
-      return "🧒 No school";
+      return ["🧒 No school"];
     case "manual_override":
-      return `🧒 ${row.meal || "Override"}`;
+      return [`🧒 ${row.meal || "Override"}`];
     default:
-      return `🧒 Snack: ${row.snack} · Lunch: ${row.meal}`;
+      return [`🧒 Snack: ${row.snack}`, `🧒 Lunch: ${row.meal}`];
   }
 }
 
@@ -126,7 +130,7 @@ export async function replaceDayEvent(row: MenuRow): Promise<void> {
   await insertEvent(row.date, titleForRow(row), "dinner");
 }
 
-/** Deletes any existing toddler events in the given week and creates one all-day event per row. */
+/** Deletes any existing toddler events in the given week and creates the event(s) for each row. */
 export async function replaceToddlerWeekEvents(
   weekStartDate: string,
   rows: ToddlerMenuRow[]
@@ -136,6 +140,8 @@ export async function replaceToddlerWeekEvents(
     await listEventsInDateRange(weekStartDate, weekEnd, "toddler")
   );
   for (const row of rows) {
-    await insertEvent(row.date, titleForToddlerRow(row), "toddler");
+    for (const title of titlesForToddlerRow(row)) {
+      await insertEvent(row.date, title, "toddler");
+    }
   }
 }

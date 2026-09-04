@@ -109,9 +109,14 @@ regenerate is cheap enough for a menu that changes rarely.
 A toddler school snack/lunch menu, generated for the school week (Monday
 through Friday only) alongside the household dinner menu — same cron run,
 same Sheet, same "Meals" calendar, distinguished by a 🧒 prefix on its
-calendar events so it doesn't get confused with dinner. It's independent of
-weather and reuses the same 28-day repeat-avoidance window, scoped to its
-own `ToddlerMenu` history. Because both tracks share one calendar, every
+calendar events so it doesn't get confused with dinner. A "generated" day
+gets two separate calendar events (snack, lunch) rather than one combined
+event, for readability; `no_school`/`manual_override` days get a single
+event — see `titlesForToddlerRow` in `calendar.ts`. It's independent of
+weather and, unlike dinner's 28-day repeat-avoidance, only looks back 7
+days of its own `ToddlerMenu` history as loose inspiration/context —
+repeats are fine, this menu doesn't need much variety. Because both tracks
+share one calendar, every
 event this app writes is tagged via `extendedProperties.private.track`
 (`"dinner"` or `"toddler"`) so a regenerate/sync on one track only
 deletes-and-recreates its own events — see `replaceWeekEvents` vs.
